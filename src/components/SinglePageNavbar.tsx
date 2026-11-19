@@ -72,7 +72,9 @@ export const SinglePageNavbar: React.FC<SinglePageNavbarProps> = ({
           <span className="p-1.5 rounded-lg bg-slate-900 border border-cyan-500/30 text-cyan-400 group-hover:border-cyan-400 transition-colors">
             <Rocket className="w-4 h-4" />
           </span>
-          <span className="text-base font-bold tracking-tight">AeroQuantum</span>
+          <span className="text-[11px] sm:text-xs font-bold tracking-tight leading-tight whitespace-normal max-w-[160px] sm:max-w-[205px] xl:max-w-[190px] 2xl:max-w-[230px]">
+            Launch Trajectory &amp; Mission Quantum Optimization
+          </span>
         </a>
 
         {/* Zone 2: Desktop Section Navigation Links */}

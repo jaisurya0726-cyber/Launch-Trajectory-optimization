@@ -1,6 +1,31 @@
-import React from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { Mission } from "../types";
 import { ArrowRight, Compass, Play, Atom, Activity, Orbit } from "lucide-react";
+
+type SatelliteId = "primary" | "relay" | "tracker";
+
+interface SatelliteTelemetry {
+  id: SatelliteId;
+  name: string;
+  role: string;
+  altitudeKm: number;
+  speedKms: number;
+  deltaVKms: number;
+  inclinationDeg: number;
+  periodMin: number;
+  accent: "cyan" | "purple" | "amber";
+}
+
+const EARTH_MU_KM3_S2 = 398600.4418;
+const EARTH_RADIUS_KM = 6371;
+
+const computeOrbitalSpeedKms = (altitudeKm: number) =>
+  Math.sqrt(EARTH_MU_KM3_S2 / (EARTH_RADIUS_KM + Math.max(120, altitudeKm)));
+
+const computeOrbitalPeriodMin = (altitudeKm: number) => {
+  const radius = EARTH_RADIUS_KM + Math.max(120, altitudeKm);
+  return (2 * Math.PI * Math.sqrt((radius * radius * radius) / EARTH_MU_KM3_S2)) / 60;
+};
 
 interface HeroSectionProps {
   activeMission: Mission;
@@ -19,6 +44,81 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   onRunAll,
   isSimulating,
 }) => {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const schematicRef = useRef<HTMLDivElement | null>(null);
+  const [hoveredSat, setHoveredSat] = useState<{
+    id: SatelliteId;
+    xPct: number;
+    yPct: number;
+  } | null>(null);
+
+  const satelliteTelemetry = useMemo<Record<SatelliteId, SatelliteTelemetry>>(() => {
+    const primaryAlt = activeMission.altitude;
+    const relayAlt = Math.round(activeMission.altitude * 1.35 + 280);
+    const trackerAlt = Math.max(220, Math.round(activeMission.altitude * 0.65));
+
+    return {
+      primary: {
+        id: "primary",
+        name: activeMission.satellite_name,
+        role: `Primary Payload · ${activeMission.target_orbit}`,
+        altitudeKm: primaryAlt,
+        speedKms: computeOrbitalSpeedKms(primaryAlt),
+        deltaVKms: activeMission.delta_v,
+        inclinationDeg: activeMission.inclination,
+        periodMin: computeOrbitalPeriodMin(primaryAlt),
+        accent: "cyan",
+      },
+      relay: {
+        id: "relay",
+        name: `${activeMission.mission_id} Quantum Relay`,
+        role: "QAOA Telemetry Node",
+        altitudeKm: relayAlt,
+        speedKms: computeOrbitalSpeedKms(relayAlt),
+        deltaVKms: activeMission.delta_v,
+        inclinationDeg: Math.min(98.6, Number((activeMission.inclination + 14.5).toFixed(1))),
+        periodMin: computeOrbitalPeriodMin(relayAlt),
+        accent: "purple",
+      },
+      tracker: {
+        id: "tracker",
+        name: `${activeMission.mission_id} Ascent Tracker`,
+        role: `${activeMission.rocket} Monitor`,
+        altitudeKm: trackerAlt,
+        speedKms: computeOrbitalSpeedKms(trackerAlt),
+        deltaVKms: activeMission.delta_v,
+        inclinationDeg: Math.max(5, Number((activeMission.inclination - 6.2).toFixed(1))),
+        periodMin: computeOrbitalPeriodMin(trackerAlt),
+        accent: "amber",
+      },
+    };
+  }, [activeMission]);
+
+  const handleSatelliteActivate = (id: SatelliteId, target: SVGGElement) => {
+    svgRef.current?.pauseAnimations?.();
+    const containerRect = schematicRef.current?.getBoundingClientRect();
+    const satRect = target.getBoundingClientRect();
+
+    if (containerRect && containerRect.width > 0 && containerRect.height > 0) {
+      const centerX = satRect.left + satRect.width / 2 - containerRect.left;
+      const centerY = satRect.top + satRect.height / 2 - containerRect.top;
+      setHoveredSat({
+        id,
+        xPct: (centerX / containerRect.width) * 100,
+        yPct: (centerY / containerRect.height) * 100,
+      });
+    } else {
+      setHoveredSat({ id, xPct: 50, yPct: 40 });
+    }
+  };
+
+  const handleSatelliteDeactivate = () => {
+    setHoveredSat(null);
+    svgRef.current?.unpauseAnimations?.();
+  };
+
+  const activeTooltipData = hoveredSat ? satelliteTelemetry[hoveredSat.id] : null;
+
   return (
     <section
       id="home"
@@ -120,25 +220,514 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <Orbit className="w-5 h-5 text-cyan-400 shrink-0" />
               </div>
 
-              {/* Clean Orbital Schematic */}
-              <div className="h-36 w-full rounded-lg bg-[#050915]/90 border border-slate-800/80 p-2 flex items-center justify-center">
-                <svg className="w-full h-full" viewBox="0 0 320 130" role="img" aria-label="Orbital ascent trajectory schematic">
-                  <line x1="16" y1="68" x2="304" y2="68" stroke="#1e293b" strokeDasharray="3 3" />
-                  <line x1="160" y1="10" x2="160" y2="122" stroke="#1e293b" strokeDasharray="3 3" />
-                  <circle cx="160" cy="68" r="28" fill="#081326" stroke="#0ea5e9" strokeWidth="1.5" />
-                  <ellipse cx="160" cy="68" rx="28" ry="10" fill="none" stroke="#38bdf8" strokeOpacity="0.4" strokeDasharray="2 2" />
-                  <text x="160" y="71" fill="#7dd3fc" fontSize="8" fontFamily="monospace" textAnchor="middle">EARTH</text>
-                  <ellipse cx="160" cy="68" rx="108" ry="44" fill="none" stroke="#64748b" strokeWidth="1" strokeDasharray="4 3" />
-                  <path d="M 68 106 Q 108 26 238 35" fill="none" stroke="#22d3ee" strokeWidth="2" />
-                  <circle cx="68" cy="106" r="3.5" fill="#f59e0b" />
-                  <text x="58" y="120" fill="#94a3b8" fontSize="8" fontFamily="monospace">T+0 Pad</text>
-                  <circle cx="122" cy="54" r="3.5" fill="#a855f7" />
-                  <text x="122" y="44" fill="#c084fc" fontSize="8" fontFamily="monospace" textAnchor="middle">Max-Q</text>
-                  <circle cx="238" cy="35" r="4" fill="#22d3ee" stroke="#ffffff" strokeWidth="1" />
-                  <text x="246" y="33" fill="#22d3ee" fontSize="8" fontFamily="monospace">
+              {/* Interactive Orbital Schematic */}
+              <div
+                ref={schematicRef}
+                onMouseLeave={handleSatelliteDeactivate}
+                className="relative h-36 w-full rounded-lg bg-[#050915]/90 border border-slate-800/80 p-2 flex items-center justify-center overflow-visible"
+              >
+                <svg
+                  ref={svgRef}
+                  className="w-full h-full"
+                  viewBox="0 0 320 130"
+                  role="img"
+                  aria-label="Interactive Earth orbital map with hoverable satellites"
+                >
+                  <defs>
+                    <radialGradient id="heroEarthOcean" cx="38%" cy="32%" r="68%">
+                      <stop offset="0%" stopColor="#38bdf8" />
+                      <stop offset="40%" stopColor="#0284c7" />
+                      <stop offset="78%" stopColor="#0c4a6e" />
+                      <stop offset="100%" stopColor="#04182b" />
+                    </radialGradient>
+                    <radialGradient id="heroEarthAtmo" cx="50%" cy="50%" r="50%">
+                      <stop offset="72%" stopColor="#38bdf8" stopOpacity="0" />
+                      <stop offset="90%" stopColor="#38bdf8" stopOpacity="0.32" />
+                      <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+                    </radialGradient>
+                    <radialGradient id="heroEarthShadow" cx="32%" cy="30%" r="72%">
+                      <stop offset="55%" stopColor="#020617" stopOpacity="0" />
+                      <stop offset="85%" stopColor="#020617" stopOpacity="0.45" />
+                      <stop offset="100%" stopColor="#020617" stopOpacity="0.82" />
+                    </radialGradient>
+                    <clipPath id="heroEarthClip">
+                      <circle cx="160" cy="65" r="27.5" />
+                    </clipPath>
+                    <filter id="heroSatGlow" x="-60%" y="-60%" width="220%" height="220%">
+                      <feGaussianBlur stdDeviation="1.6" result="blur" />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                    <filter id="heroOrbitGlow" x="-30%" y="-30%" width="160%" height="160%">
+                      <feGaussianBlur stdDeviation="1.4" result="orbitBlur" />
+                      <feMerge>
+                        <feMergeNode in="orbitBlur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  {/* Deep Space Starfield */}
+                  <g fill="#cbd5e1" opacity="0.55">
+                    <circle cx="24" cy="18" r="0.9" />
+                    <circle cx="52" cy="108" r="0.8" />
+                    <circle cx="76" cy="24" r="1.1" fill="#7dd3fc" />
+                    <circle cx="112" cy="14" r="0.7" />
+                    <circle cx="218" cy="15" r="0.9" />
+                    <circle cx="256" cy="28" r="1.1" fill="#c084fc" />
+                    <circle cx="294" cy="48" r="0.8" />
+                    <circle cx="282" cy="104" r="1" fill="#7dd3fc" />
+                    <circle cx="38" cy="76" r="0.7" />
+                    <circle cx="198" cy="116" r="0.8" />
+                    <circle cx="122" cy="118" r="0.9" />
+                    <circle cx="298" cy="18" r="0.7" />
+                  </g>
+
+                  {/* Back Orbital Arcs (Behind Earth) — Soft Glow + Animated Dashed Trajectory */}
+                  <g transform="translate(160, 65) rotate(-14)">
+                    <path
+                      d="M 110 0 A 110 35 0 1 0 -110 0"
+                      fill="none"
+                      stroke="#22d3ee"
+                      strokeWidth="2.2"
+                      strokeOpacity="0.16"
+                      filter="url(#heroOrbitGlow)"
+                    />
+                    <path
+                      d="M 110 0 A 110 35 0 1 0 -110 0"
+                      fill="none"
+                      stroke="#38bdf8"
+                      strokeWidth="1"
+                      strokeOpacity="0.38"
+                      strokeDasharray="6 5"
+                      strokeLinecap="round"
+                    >
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        from="0"
+                        to="-22"
+                        dur="1.8s"
+                        repeatCount="indefinite"
+                      />
+                    </path>
+                  </g>
+                  <g transform="translate(160, 65) rotate(22)">
+                    <path
+                      d="M 86 0 A 86 40 0 1 0 -86 0"
+                      fill="none"
+                      stroke="#a855f7"
+                      strokeWidth="2"
+                      strokeOpacity="0.15"
+                      filter="url(#heroOrbitGlow)"
+                    />
+                    <path
+                      d="M 86 0 A 86 40 0 1 0 -86 0"
+                      fill="none"
+                      stroke="#c084fc"
+                      strokeWidth="1"
+                      strokeOpacity="0.35"
+                      strokeDasharray="5 5"
+                      strokeLinecap="round"
+                    >
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        from="0"
+                        to="-20"
+                        dur="2.4s"
+                        repeatCount="indefinite"
+                      />
+                    </path>
+                  </g>
+                  <g transform="translate(160, 65) rotate(8)">
+                    <path
+                      d="M 60 0 A 60 18 0 1 0 -60 0"
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="1.8"
+                      strokeOpacity="0.14"
+                      filter="url(#heroOrbitGlow)"
+                    />
+                    <path
+                      d="M 60 0 A 60 18 0 1 0 -60 0"
+                      fill="none"
+                      stroke="#fbbf24"
+                      strokeWidth="0.9"
+                      strokeOpacity="0.32"
+                      strokeDasharray="4 4"
+                      strokeLinecap="round"
+                    >
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        from="0"
+                        to="-16"
+                        dur="1.2s"
+                        repeatCount="indefinite"
+                      />
+                    </path>
+                  </g>
+
+                  {/* Earth Outer Atmospheric Glow */}
+                  <circle cx="160" cy="65" r="35" fill="url(#heroEarthAtmo)" />
+
+                  {/* Earth Sphere */}
+                  <circle cx="160" cy="65" r="28" fill="url(#heroEarthOcean)" />
+
+                  {/* Slowly Rotating Continents & Cloud Bands Clipped to Earth */}
+                  <g clipPath="url(#heroEarthClip)">
+                    <g>
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        from="-56 0"
+                        to="0 0"
+                        dur="26s"
+                        repeatCount="indefinite"
+                      />
+                      {/* Tile 1 */}
+                      <g fill="#10b981" fillOpacity="0.72">
+                        <path d="M 136 46 Q 145 43 151 50 Q 154 57 148 63 Q 142 66 138 61 Z" />
+                        <path d="M 146 66 Q 152 68 153 76 Q 150 84 145 82 Q 142 75 146 66 Z" />
+                        <path d="M 164 47 Q 174 44 182 51 Q 185 59 178 64 Q 170 63 166 56 Z" />
+                        <path d="M 167 62 Q 175 64 176 74 Q 172 82 167 78 Q 164 70 167 62 Z" />
+                      </g>
+                      {/* Tile 2 (Seamless Loop Copy +56px) */}
+                      <g transform="translate(56, 0)" fill="#10b981" fillOpacity="0.72">
+                        <path d="M 136 46 Q 145 43 151 50 Q 154 57 148 63 Q 142 66 138 61 Z" />
+                        <path d="M 146 66 Q 152 68 153 76 Q 150 84 145 82 Q 142 75 146 66 Z" />
+                        <path d="M 164 47 Q 174 44 182 51 Q 185 59 178 64 Q 170 63 166 56 Z" />
+                        <path d="M 167 62 Q 175 64 176 74 Q 172 82 167 78 Q 164 70 167 62 Z" />
+                      </g>
+                    </g>
+
+                    {/* Wispy Atmospheric Clouds */}
+                    <g opacity="0.38" stroke="#e0f2fe" strokeLinecap="round" fill="none">
+                      <animateTransform
+                        attributeName="transform"
+                        type="translate"
+                        from="-56 0"
+                        to="0 0"
+                        dur="19s"
+                        repeatCount="indefinite"
+                      />
+                      <path d="M 134 54 Q 146 51 158 55" strokeWidth="1.6" />
+                      <path d="M 160 72 Q 172 70 184 74" strokeWidth="1.4" />
+                      <path d="M 144 43 Q 156 41 168 44" strokeWidth="1.2" />
+                      <g transform="translate(56, 0)">
+                        <path d="M 134 54 Q 146 51 158 55" strokeWidth="1.6" />
+                        <path d="M 160 72 Q 172 70 184 74" strokeWidth="1.4" />
+                        <path d="M 144 43 Q 156 41 168 44" strokeWidth="1.2" />
+                      </g>
+                    </g>
+
+                    {/* Subtle Day/Night Terminator Shading */}
+                    <circle cx="160" cy="65" r="28" fill="url(#heroEarthShadow)" />
+                  </g>
+
+                  {/* Crisp Atmospheric Rim */}
+                  <circle
+                    cx="160"
+                    cy="65"
+                    r="28"
+                    fill="none"
+                    stroke="#7dd3fc"
+                    strokeWidth="1"
+                    strokeOpacity="0.65"
+                  />
+
+                  {/* Front Orbital Arcs (In Front of Earth) — Glowing Halo + Flowing Dashed Trajectories */}
+                  <g transform="translate(160, 65) rotate(-14)">
+                    <path
+                      d="M -110 0 A 110 35 0 1 0 110 0"
+                      fill="none"
+                      stroke="#22d3ee"
+                      strokeWidth="2.8"
+                      strokeOpacity="0.28"
+                      filter="url(#heroOrbitGlow)"
+                    />
+                    <path
+                      d="M -110 0 A 110 35 0 1 0 110 0"
+                      fill="none"
+                      stroke="#67e8f9"
+                      strokeWidth="1.25"
+                      strokeOpacity="0.86"
+                      strokeDasharray="6 5"
+                      strokeLinecap="round"
+                      filter="url(#heroOrbitGlow)"
+                    >
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        from="0"
+                        to="-22"
+                        dur="1.8s"
+                        repeatCount="indefinite"
+                      />
+                    </path>
+                    {/* Primary Mission Satellite (LEO / Target Orbit) */}
+                    <g
+                      filter="url(#heroSatGlow)"
+                      className="cursor-pointer outline-none"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${satelliteTelemetry.primary.name}: Altitude ${satelliteTelemetry.primary.altitudeKm} km, Speed ${satelliteTelemetry.primary.speedKms.toFixed(2)} km/s`}
+                      onMouseEnter={(e) => handleSatelliteActivate("primary", e.currentTarget)}
+                      onMouseLeave={handleSatelliteDeactivate}
+                      onFocus={(e) => handleSatelliteActivate("primary", e.currentTarget)}
+                      onBlur={handleSatelliteDeactivate}
+                    >
+                      <animateMotion
+                        dur="11s"
+                        repeatCount="indefinite"
+                        path="M 110 0 A 110 35 0 1 0 -110 0 A 110 35 0 1 0 110 0"
+                      />
+                      {/* Generous invisible hit area for effortless hovering */}
+                      <circle cx="0" cy="0" r="14" fill="transparent" />
+                      {hoveredSat?.id === "primary" && (
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="12"
+                          fill="#22d3ee"
+                          fillOpacity="0.14"
+                          stroke="#67e8f9"
+                          strokeWidth="1"
+                          strokeDasharray="3 2"
+                        />
+                      )}
+                      {/* Twin Solar Panels */}
+                      <rect x="-10" y="-2.2" width="6.5" height="4.4" rx="0.6" fill="#0ea5e9" stroke="#bae6fd" strokeWidth="0.6" />
+                      <rect x="3.5" y="-2.2" width="6.5" height="4.4" rx="0.6" fill="#0ea5e9" stroke="#bae6fd" strokeWidth="0.6" />
+                      {/* Satellite Bus */}
+                      <rect x="-2.6" y="-2.8" width="5.2" height="5.6" rx="1" fill="#f8fafc" stroke="#22d3ee" strokeWidth="0.8" />
+                      {/* Beacon */}
+                      <circle cx="0" cy="-4.3" r="1.1" fill="#22d3ee" />
+                    </g>
+                  </g>
+
+                  <g transform="translate(160, 65) rotate(22)">
+                    <path
+                      d="M -86 0 A 86 40 0 1 0 86 0"
+                      fill="none"
+                      stroke="#a855f7"
+                      strokeWidth="2.5"
+                      strokeOpacity="0.26"
+                      filter="url(#heroOrbitGlow)"
+                    />
+                    <path
+                      d="M -86 0 A 86 40 0 1 0 86 0"
+                      fill="none"
+                      stroke="#d8b4fe"
+                      strokeWidth="1.15"
+                      strokeOpacity="0.82"
+                      strokeDasharray="5 5"
+                      strokeLinecap="round"
+                      filter="url(#heroOrbitGlow)"
+                    >
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        from="0"
+                        to="-20"
+                        dur="2.4s"
+                        repeatCount="indefinite"
+                      />
+                    </path>
+                    {/* Secondary Quantum Relay Satellite */}
+                    <g
+                      filter="url(#heroSatGlow)"
+                      className="cursor-pointer outline-none"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${satelliteTelemetry.relay.name}: Altitude ${satelliteTelemetry.relay.altitudeKm} km, Speed ${satelliteTelemetry.relay.speedKms.toFixed(2)} km/s`}
+                      onMouseEnter={(e) => handleSatelliteActivate("relay", e.currentTarget)}
+                      onMouseLeave={handleSatelliteDeactivate}
+                      onFocus={(e) => handleSatelliteActivate("relay", e.currentTarget)}
+                      onBlur={handleSatelliteDeactivate}
+                    >
+                      <animateMotion
+                        dur="15s"
+                        begin="-4.5s"
+                        repeatCount="indefinite"
+                        path="M 86 0 A 86 40 0 1 0 -86 0 A 86 40 0 1 0 86 0"
+                      />
+                      <circle cx="0" cy="0" r="14" fill="transparent" />
+                      {hoveredSat?.id === "relay" && (
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="11"
+                          fill="#a855f7"
+                          fillOpacity="0.16"
+                          stroke="#d8b4fe"
+                          strokeWidth="1"
+                          strokeDasharray="3 2"
+                        />
+                      )}
+                      <rect x="-8.5" y="-1.8" width="5.5" height="3.6" rx="0.5" fill="#7c3aed" stroke="#e9d5ff" strokeWidth="0.5" />
+                      <rect x="3" y="-1.8" width="5.5" height="3.6" rx="0.5" fill="#7c3aed" stroke="#e9d5ff" strokeWidth="0.5" />
+                      <rect x="-2.2" y="-2.2" width="4.4" height="4.4" rx="0.8" fill="#f5f3ff" stroke="#c084fc" strokeWidth="0.7" />
+                    </g>
+                  </g>
+
+                  <g transform="translate(160, 65) rotate(8)">
+                    <path
+                      d="M -60 0 A 60 18 0 1 0 60 0"
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="2.2"
+                      strokeOpacity="0.24"
+                      filter="url(#heroOrbitGlow)"
+                    />
+                    <path
+                      d="M -60 0 A 60 18 0 1 0 60 0"
+                      fill="none"
+                      stroke="#fcd34d"
+                      strokeWidth="1.05"
+                      strokeOpacity="0.78"
+                      strokeDasharray="4 4"
+                      strokeLinecap="round"
+                      filter="url(#heroOrbitGlow)"
+                    >
+                      <animate
+                        attributeName="stroke-dashoffset"
+                        from="0"
+                        to="-16"
+                        dur="1.2s"
+                        repeatCount="indefinite"
+                      />
+                    </path>
+                    {/* Fast Inner Telemetry Satellite (Occludes Behind Earth) */}
+                    <g
+                      className="cursor-pointer outline-none"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`${satelliteTelemetry.tracker.name}: Altitude ${satelliteTelemetry.tracker.altitudeKm} km, Speed ${satelliteTelemetry.tracker.speedKms.toFixed(2)} km/s`}
+                      onMouseEnter={(e) => handleSatelliteActivate("tracker", e.currentTarget)}
+                      onMouseLeave={handleSatelliteDeactivate}
+                      onFocus={(e) => handleSatelliteActivate("tracker", e.currentTarget)}
+                      onBlur={handleSatelliteDeactivate}
+                    >
+                      <animateMotion
+                        dur="7.5s"
+                        begin="-2s"
+                        repeatCount="indefinite"
+                        path="M 60 0 A 60 18 0 1 0 -60 0 A 60 18 0 1 0 60 0"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        values="1;1;0;0;1;1"
+                        keyTimes="0;0.16;0.20;0.30;0.34;1"
+                        dur="7.5s"
+                        begin="-2s"
+                        repeatCount="indefinite"
+                      />
+                      <circle cx="0" cy="0" r="13" fill="transparent" />
+                      {hoveredSat?.id === "tracker" && (
+                        <circle
+                          cx="0"
+                          cy="0"
+                          r="10"
+                          fill="#f59e0b"
+                          fillOpacity="0.16"
+                          stroke="#fcd34d"
+                          strokeWidth="1"
+                          strokeDasharray="3 2"
+                        />
+                      )}
+                      <rect x="-6.5" y="-1.4" width="4" height="2.8" rx="0.4" fill="#d97706" stroke="#fde68a" strokeWidth="0.45" />
+                      <rect x="2.5" y="-1.4" width="4" height="2.8" rx="0.4" fill="#d97706" stroke="#fde68a" strokeWidth="0.45" />
+                      <circle cx="0" cy="0" r="2.1" fill="#fef3c7" stroke="#f59e0b" strokeWidth="0.7" />
+                    </g>
+                  </g>
+
+                  {/* Active Orbit Telemetry Tag */}
+                  <text x="10" y="121" fill="#94a3b8" fontSize="7.5" fontFamily="monospace">
+                    {hoveredSat ? "ORBIT LOCKED · TELEMETRY" : "HOVER SAT FOR METRICS"}
+                  </text>
+                  <text x="310" y="121" fill="#22d3ee" fontSize="7.5" fontFamily="monospace" textAnchor="end">
                     {activeMission.target_orbit} {activeMission.altitude} km
                   </text>
                 </svg>
+
+                {/* Hover Telemetry Tooltip Tied to activeMission */}
+                {hoveredSat && activeTooltipData && (
+                  <div
+                    role="tooltip"
+                    style={{
+                      left: `${Math.min(Math.max(hoveredSat.xPct, 24), 76)}%`,
+                      top:
+                        hoveredSat.yPct > 45
+                          ? `${Math.max(hoveredSat.yPct - 14, 4)}%`
+                          : `${Math.min(hoveredSat.yPct + 16, 94)}%`,
+                      transform:
+                        hoveredSat.yPct > 45
+                          ? "translate(-50%, -100%)"
+                          : "translate(-50%, 0)",
+                    }}
+                    className={`pointer-events-none absolute z-30 w-56 rounded-lg bg-[#050b1c]/95 backdrop-blur-md px-3 py-2.5 shadow-2xl border transition-opacity duration-150 ${
+                      activeTooltipData.accent === "cyan"
+                        ? "border-cyan-400/50"
+                        : activeTooltipData.accent === "purple"
+                        ? "border-purple-400/50"
+                        : "border-amber-400/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-1.5 mb-1.5">
+                      <div className="min-w-0">
+                        <div className="text-[11px] font-bold text-white truncate">
+                          {activeTooltipData.name}
+                        </div>
+                        <div
+                          className={`text-[10px] font-mono truncate ${
+                            activeTooltipData.accent === "cyan"
+                              ? "text-cyan-300"
+                              : activeTooltipData.accent === "purple"
+                              ? "text-purple-300"
+                              : "text-amber-300"
+                          }`}
+                        >
+                          {activeTooltipData.role}
+                        </div>
+                      </div>
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          activeTooltipData.accent === "cyan"
+                            ? "bg-cyan-400"
+                            : activeTooltipData.accent === "purple"
+                            ? "bg-purple-400"
+                            : "bg-amber-400"
+                        }`}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] font-mono tabular-nums">
+                      <div>
+                        <span className="text-slate-400 block text-[9px] font-sans">Altitude</span>
+                        <span className="text-white font-semibold">
+                          {activeTooltipData.altitudeKm.toLocaleString()} km
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] font-sans">Orbital Speed</span>
+                        <span className="text-cyan-300 font-semibold">
+                          {activeTooltipData.speedKms.toFixed(2)} km/s
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] font-sans">Mission Δv</span>
+                        <span className="text-slate-200 font-semibold">
+                          {activeTooltipData.deltaVKms.toFixed(2)} km/s
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[9px] font-sans">Incl. / Period</span>
+                        <span className="text-slate-200 font-semibold">
+                          {activeTooltipData.inclinationDeg}° · {Math.round(activeTooltipData.periodMin)}m
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-xs font-mono tabular-nums">
