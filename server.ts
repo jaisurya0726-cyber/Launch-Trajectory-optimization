@@ -47,8 +47,8 @@ async function startServer() {
       }
 
       // Valid model enforcement
-      const allowedModels = ['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-argon'];
-      const selectedModel = allowedModels.includes(model) ? model : 'gemini-3.8-flash';
+      const allowedModels = ['gemini-2.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-4-argon'];
+      const selectedModel = allowedModels.includes(model) ? model : 'gemini-2.5-flash';
 
       // Build specialized system instruction based on role & mission context
       let rolePrompt = 'You are the AeroQuantum Mission & Quantum Computing Intelligence Specialist.';

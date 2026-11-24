@@ -28,6 +28,7 @@ import { AtmosphericReentryView } from "./components/AtmosphericReentryView";
 import { MissionHistoryModal } from "./components/MissionHistoryModal";
 import { MissionLogbookSidebar } from "./components/MissionLogbookSidebar";
 import { GeminiChatbotSidebar } from "./components/GeminiChatbotSidebar";
+import { CodeSpaceModal } from "./components/CodeSpaceModal";
 import { runClassicalOptimization, runQAOASimulation } from "./lib/optimization";
 import {
   getMissionHistory,
@@ -57,6 +58,7 @@ import {
   BarChart3,
   History,
   BookOpen,
+  Code,
 } from "lucide-react";
 
 type PlanningTab = "catalog" | "parameters" | "trajectory" | "reentry";
@@ -128,6 +130,7 @@ function MainApp() {
   const [resultsTab, setResultsTab] = useState<ResultsTab>("comparison");
 
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [isCodeSpaceOpen, setIsCodeSpaceOpen] = useState<boolean>(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
   const [isLogbookOpen, setIsLogbookOpen] = useState<boolean>(false);
@@ -298,6 +301,7 @@ function MainApp() {
         onOpenLogbook={() => setIsLogbookOpen(true)}
         isGeminiChatOpen={isGeminiChatOpen}
         onToggleGeminiChat={() => setIsGeminiChatOpen((prev) => !prev)}
+        onOpenCodeSpace={() => setIsCodeSpaceOpen(true)}
       />
 
       <main className="flex-1 w-full">
@@ -474,6 +478,14 @@ function MainApp() {
               >
                 <Activity className="w-3.5 h-3.5" />
                 <span>Ascent Trajectory (3D &amp; RK4)</span>
+              </button>
+              <button
+                onClick={() => setIsCodeSpaceOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-cyan-950/80 text-cyan-400 border border-cyan-500/40 hover:border-cyan-400 transition-colors cursor-pointer whitespace-nowrap shadow-sm"
+                title="Open Code Space IDE beside Step 3"
+              >
+                <Code className="w-3.5 h-3.5" />
+                <span>Code Space</span>
               </button>
               <button
                 onClick={() => setPlanningTab("reentry")}
@@ -1067,6 +1079,11 @@ function MainApp() {
         onClose={() => setIsGeminiChatOpen(false)}
         activeMission={selectedMission}
         activeTab={activeTabIndex}
+      />
+
+      <CodeSpaceModal
+        isOpen={isCodeSpaceOpen}
+        onClose={() => setIsCodeSpaceOpen(false)}
       />
     </div>
   );

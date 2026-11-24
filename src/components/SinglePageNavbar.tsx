@@ -7,10 +7,8 @@ import {
   History,
   BookOpen,
   Sparkles,
-  Sun,
-  Moon,
+  Code,
 } from "lucide-react";
-import { useTheme } from "../context/ThemeContext";
 
 export interface NavSectionItem {
   id: string;
@@ -38,6 +36,7 @@ interface SinglePageNavbarProps {
   onOpenLogbook: () => void;
   isGeminiChatOpen: boolean;
   onToggleGeminiChat: () => void;
+  onOpenCodeSpace: () => void;
 }
 
 export const SinglePageNavbar: React.FC<SinglePageNavbarProps> = ({
@@ -50,8 +49,8 @@ export const SinglePageNavbar: React.FC<SinglePageNavbarProps> = ({
   onOpenLogbook,
   isGeminiChatOpen,
   onToggleGeminiChat,
+  onOpenCodeSpace,
 }) => {
-  const { isDark, toggleTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, sectionId: string) => {
@@ -126,6 +125,15 @@ export const SinglePageNavbar: React.FC<SinglePageNavbarProps> = ({
           </button>
 
           <button
+            onClick={onOpenCodeSpace}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 hover:bg-slate-800 text-cyan-400 border border-cyan-500/40 hover:border-cyan-400 transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-sm"
+            title="Toggle Code Space IDE"
+          >
+            <Code className="w-3.5 h-3.5 shrink-0 text-cyan-400" />
+            <span className="hidden md:inline">Code Space</span>
+          </button>
+
+          <button
             onClick={onToggleGeminiChat}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               isGeminiChatOpen
@@ -137,15 +145,6 @@ export const SinglePageNavbar: React.FC<SinglePageNavbarProps> = ({
             <Sparkles className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Chat with Gemini</span>
             <span className="sm:hidden">Gemini</span>
-          </button>
-
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
-            title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-            aria-label="Toggle color theme"
-          >
-            {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-indigo-400" />}
           </button>
 
           {/* Responsive Mobile / Tablet Drawer Trigger */}
